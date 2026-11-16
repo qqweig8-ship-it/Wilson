@@ -228,24 +228,48 @@ function drawRibbons(fill){
  }
  ink.restore();
 }
-let lastImpact=-1;
-function drawImpact(){
+const shellDirections=Array.from({length:92},(_,i)=>{
+ const z=1-2*(i+.5)/92,rad=Math.sqrt(1-z*z),phi=i*2.399963;
+ return {x:rad*Math.cos(phi),y:rad*Math.sin(phi),z,speed:.79+.21*Math.sin(i*21.7)**2};
+});
+// Each shell has its own centre, fuse delay, size and rotation.
+const goldShells=[
+ {x:0,y:0,z:0,delay:0,size:.94,turn:.1},
+ {x:-1.09,y:.32,z:-.42,delay:.24,size:.71,turn:1.9},
+ {x:1.08,y:.49,z:.28,delay:.52,size:.79,turn:-.85}
+];
+function drawImpact(front){
  if(reduced)return;
- const cycle=Math.floor(time/7.4),age=time-cycle*7.4-4.15;
- if(age<0||age>1.7)return;
- const p=project(0,3.91),radius=Math.min(W*.32,H*.18);
- if(cycle!==lastImpact){lastImpact=cycle;burst(p.x,p.y,1.28);}
- ink.save();ink.translate(p.x,p.y);ink.globalCompositeOperation='lighter';
- const spread=.18+.82*(1-Math.exp(-age*3.3)),fade=(1-age/1.7)**2;
- for(let j=0;j<32;j++){
-  const a=j*TAU/32+.045*Math.sin(j*17),length=radius*(.44+.56*Math.cos(j*13.3)**2)*spread;
-  const x=Math.cos(a),y=Math.sin(a);ink.beginPath();ink.moveTo(x*length*.38,y*length*.38);ink.lineTo(x*length,y*length);
-  ink.strokeStyle=j%3?'#ffbf70':'#ff63b6';ink.globalAlpha=fade*.63;ink.lineWidth=1;ink.stroke();
+ const age=time%7.4-4.15;if(age<0||age>3)return;
+ const star=project(0,3.91),unit=Math.min(W*.19,H*.105);
+ ink.save();ink.globalCompositeOperation='lighter';ink.lineCap='round';
+ for(const shell of goldShells){
+  const t=age-shell.delay;if(t<=0||t>=2.45)continue;
+  const cx=star.x+unit*shell.x,cy=star.y+unit*shell.y;
+  const cos=Math.cos(shell.turn),sin=Math.sin(shell.turn);
+  const head=(1-Math.exp(-2.2*t))*shell.size;
+  const tailTime=Math.max(0,t-.2-.09*Math.min(t,1));
+  const fade=Math.min(1,t*15)*(1-smooth(.86,2.45,t));
+  for(let i=0;i<shellDirections.length;i++){
+   const d=shellDirections[i],dx=d.x*cos+d.z*sin,dz=d.z*cos-d.x*sin;
+   const depth=shell.z+dz*head*d.speed;if((depth>0)!==front)continue;
+   const spark=(s)=>{
+    const spread=(1-Math.exp(-2.2*s))*shell.size*d.speed;
+    const perspective=2.65/(2.65-shell.z-dz*spread);
+    return [cx+unit*dx*spread*perspective,cy+unit*(d.y*spread+.21*s*s)*perspective,perspective];
+   };
+   const [x,y,p]=spark(t),[mx,my]=spark((t+tailTime)/2),[tx,ty]=spark(tailTime);
+   const twinkle=.78+.22*Math.sin(18*t+i*9);
+   ink.globalAlpha=Math.min(1,fade*twinkle*(front?.86:.49)*p);
+   ink.lineWidth=Math.max(.5,p*(front?1.55:.85)*Math.min(1.45,unit/75));
+   ink.strokeStyle=i%4?'#ffba46':'#ffdf88';
+   ink.beginPath();ink.moveTo(tx,ty);ink.quadraticCurveTo(mx,my,x,y);ink.stroke();
+   ink.fillStyle='#fff2ba';ink.beginPath();ink.arc(x,y,Math.max(.6,p*(front?1.45:.88)),0,TAU);ink.fill();
+   if(front&&i%7===0){ink.globalAlpha*=.23;ink.fillStyle='#ffad28';ink.beginPath();ink.arc(x,y,3.2*p,0,TAU);ink.fill();}
+  }
  }
- ink.globalAlpha=fade*.75;ink.strokeStyle='#ffd99d';ink.lineWidth=1.4;
- ink.beginPath();ink.ellipse(0,0,radius*spread,radius*spread*.26,-.23,0,TAU);ink.stroke();ink.restore();
+ ink.restore();
 }
-
 function drawMeteor(){
  const t=(reduced?.49:time%7.4/4.15);
  if(t>1.26)return;
@@ -265,7 +289,7 @@ function drawFloor(){const p=project(0,-.03),rx=Math.min(W*.46,H*scale*.7);ink.s
 function burst(x,y,power=1){if(reduced)return;for(let i=0,n=Math.floor(95*power);i<n;i++){const a=rnd()*TAU,speed=(28+Math.sqrt(rnd())*95)*power;sparkles.push({x,y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed-24,age:0,life:1.3+rnd()*1.8,size:.7+rnd()*1.2,gold:rnd()<.8,tw:rnd()});}waves.push({x,y,age:0,power});if(sparkles.length>650)sparkles.splice(0,sparkles.length-650);}
 function drawBursts(dt){ink.save();ink.globalCompositeOperation='lighter';for(let i=sparkles.length-1;i>=0;i--){const p=sparkles[i];p.age+=dt;if(p.age>p.life){sparkles.splice(i,1);continue;}const px=p.x,py=p.y;p.vx*=Math.pow(.62,dt);p.vy+=22*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;const a=Math.pow(1-p.age/p.life,1.5);ink.globalAlpha=a;ink.fillStyle=p.gold?'#ffe1a3':'#ffabd5';ink.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);ink.strokeStyle=p.gold?'#ffc977':'#ff7ebb';ink.lineWidth=.55;ink.beginPath();ink.moveTo(px,py);ink.lineTo(p.x,p.y);ink.stroke();if(p.tw>.92){const r=p.size*3.5;ink.globalAlpha=a*.7;ink.beginPath();ink.moveTo(p.x-r,p.y);ink.lineTo(p.x+r,p.y);ink.moveTo(p.x,p.y-r);ink.lineTo(p.x,p.y+r);ink.stroke();}}
  for(let i=waves.length-1;i>=0;i--){const p=waves[i];p.age+=dt;if(p.age>2.2){waves.splice(i,1);continue;}ink.globalAlpha=Math.pow(1-p.age/2.2,2)*.16;ink.strokeStyle='#ffd08f';ink.lineWidth=.65;ink.beginPath();ink.ellipse(p.x,p.y,(10+p.age*92)*p.power,(10+p.age*72)*p.power,0,0,TAU);ink.stroke();}ink.restore();}
-function render(dt=0){const normalized=Math.max(0,Math.min(1,(elapsed-.15)/4.0)),fill=1.12*(1-Math.pow(1-normalized,1.12));if(gl){gl.clear(gl.COLOR_BUFFER_BIT);const values={Time:time,Fill:fill,Aspect:W/H,Scale:scale,Angle:angle,Tilt:tilt,Dpr:dpr,Height:H};for(const k in values)gl.uniform1f(uniforms[k],values[k]);gl.drawArrays(gl.POINTS,0,pos.length/3);}else drawCPU(fill);ink.clearRect(0,0,W,H);drawFloor();drawRibbons(fill);drawMeteor();drawImpact();drawStar(fill);if(!celebrated&&fill>1.085){celebrated=true;const p=project(0,3.91);burst(p.x,p.y,.82);}drawBursts(dt);}
+function render(dt=0){const normalized=Math.max(0,Math.min(1,(elapsed-.15)/4.0)),fill=1.12*(1-Math.pow(1-normalized,1.12));if(gl){gl.clear(gl.COLOR_BUFFER_BIT);const values={Time:time,Fill:fill,Aspect:W/H,Scale:scale,Angle:angle,Tilt:tilt,Dpr:dpr,Height:H};for(const k in values)gl.uniform1f(uniforms[k],values[k]);gl.drawArrays(gl.POINTS,0,pos.length/3);}else drawCPU(fill);ink.clearRect(0,0,W,H);drawFloor();drawRibbons(fill);drawMeteor();drawImpact(false);drawStar(fill);drawImpact(true);if(!celebrated&&fill>1.085){celebrated=true;const p=project(0,3.91);burst(p.x,p.y,.42);}drawBursts(dt);}
 function frame(stamp){raf=0;if(document.hidden)return;const dt=last?(stamp-last)/1000:0;last=stamp;time+=dt;elapsed+=dt;targetAngle+=dt*.052;angle+=(targetAngle-angle)*Math.min(1,dt*4.5);tilt+=(targetTilt-tilt)*Math.min(1,dt*3);render(dt);raf=requestAnimationFrame(frame);}
 new ResizeObserver(resize).observe(scene);resize();if(!reduced)raf=requestAnimationFrame(frame);
 document.addEventListener('visibilitychange',()=>{last=0;if(document.hidden){if(raf)cancelAnimationFrame(raf);raf=0;}else if(!raf&&!reduced)raf=requestAnimationFrame(frame);});
