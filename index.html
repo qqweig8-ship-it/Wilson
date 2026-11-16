@@ -240,11 +240,11 @@ const goldShells=[
 ];
 function drawImpact(front){
  if(reduced)return;
- const age=time%7.4-4.15;if(age<0||age>3)return;
+ const age=time%8.6-4.15;if(age<0||age>4.44)return;
  const star=project(0,3.91),unit=Math.min(W*.19,H*.105);
  ink.save();ink.globalCompositeOperation='lighter';ink.lineCap='round';
  for(const shell of goldShells){
-  const t=age-shell.delay;if(t<=0||t>=2.45)continue;
+  const t=age-shell.delay;if(t<=0||t>=3.92)continue;
   const cx=star.x+unit*shell.x,cy=star.y+unit*shell.y;
   const cos=Math.cos(shell.turn),sin=Math.sin(shell.turn);
   const head=(1-Math.exp(-2.2*t))*shell.size;
@@ -258,6 +258,40 @@ function drawImpact(front){
     const perspective=2.65/(2.65-shell.z-dz*spread);
     return [cx+unit*dx*spread*perspective,cy+unit*(d.y*spread+.21*s*s)*perspective,perspective];
    };
+   const release=.59+.23*d.speed;
+   if(i%8===0 && t>=release){
+    // Release selected sparks at their existing position and tangent.
+    const start=spark(release),prev=spark(release-.01);
+    const vx=(start[0]-prev[0])*100,vy=(start[1]-prev[1])*100;
+    const duration=1.75+.62*(.5+.5*Math.sin(i+shell.turn*9));
+    const impact=project(Math.max(-1.15,Math.min(1.15,shell.x*.61+dx*.68)),-.035,dz*.72);
+    const u=(t-release)/duration,light=front?1:.65;
+    const path=v=>{
+     if(v<0)return spark(Math.max(0,release+v*duration));
+     const drift=v*(1-v)*(1-v),bend=v*v*(3-2*v);
+     return [start[0]+vx*duration*drift+(impact.x-start[0])*bend,
+      start[1]+vy*duration*drift+(impact.y-start[1])*v*v];
+    };
+    const point=path(Math.min(u,1)),x=point[0],y=point[1];
+    if(u<1){
+     const tail=.12+.08*u;
+     for(let k=0;k<6;k++){
+      const a=path(u-tail*(1-k/6)),b=path(u-tail*(1-(k+1)/6));
+      ink.globalAlpha=light*(k+1)/7;ink.lineWidth=(.6+k*.37)*start[2];
+      ink.strokeStyle=k<3?'#ff9227':'#ffd67a';
+      ink.beginPath();ink.moveTo(a[0],a[1]);ink.lineTo(b[0],b[1]);ink.stroke();
+     }
+     ink.globalAlpha=light;ink.fillStyle='#fff6cd';ink.beginPath();ink.arc(x,y,2.1*start[2],0,TAU);ink.fill();
+    }else{
+     const after=(u-1)*duration;
+     if(after<.42){
+      ink.globalAlpha=light*(1-after/.42);ink.strokeStyle='#ffe7a5';ink.lineWidth=1.3;
+      ink.beginPath();ink.ellipse(x,y,1+after*32,.7+after*8,0,0,TAU);ink.stroke();
+     }
+    }
+    continue;
+   }
+   if(t>=2.45)continue;
    const [x,y,p]=spark(t),[mx,my]=spark((t+tailTime)/2),[tx,ty]=spark(tailTime);
    const twinkle=.78+.22*Math.sin(18*t+i*9);
    ink.globalAlpha=Math.min(1,fade*twinkle*(front?.86:.49)*p);
@@ -271,7 +305,7 @@ function drawImpact(front){
  ink.restore();
 }
 function drawMeteor(){
- const t=(reduced?.49:time%7.4/4.15);
+ const t=(reduced?.49:time%8.6/4.15);
  if(t>1.26)return;
  const unit=Math.min(1.35,Math.max(.82,H/800));
  ink.save();ink.globalCompositeOperation='lighter';
